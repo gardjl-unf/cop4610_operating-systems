@@ -1,18 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define INPUT_BUFFER 256
-#define RESPONSE_BUFFER 2048
+#define RESPONSE_BUFFER 65536
 #define SPACE " "
 #define TERMINATOR '\0'
+#define NEWLINE '\n'
 #define PROMPT "Valid Commands: cd, dir, type, del, ren, copy\n"
 #define EXIT_STRING "Type Ctrl-C to exit\n"
 #define INVALID_COMMAND "Invalid command. Please try again.\n"
-#define CD_COMMAND "cd"
+#define CD_COMMAND_W "cd"
+#define CD_COMMAND_L "cd "
 #define DIR_COMMAND "dir"
 #define LS_COMMAND "ls -l"
-#define TYPE_COMMAND "type "
+#define TYPE_COMMAND "type"
 #define CAT_COMMAND "cat "
 #define DEL_COMMAND "del"
 #define RM_COMMAND "rm "
@@ -43,6 +46,10 @@ void run(COMMAND*);
 int main() {
     COMMAND cmd;
     char *token;
+
+    printf(STR_F, PROMPT);
+    printf(STR_F, EXIT_STRING);
+
     while (1) {
         prompt(&cmd);
         while (fgets(cmd.input, INPUT_BUFFER, stdin)) {
@@ -56,13 +63,9 @@ int main() {
                 }   
             }
              
-            if (strcmp(cmd.output, CD_COMMAND) == 0 && cmd.arg1 != NULL) {
-                strcpy(cmd.output, CD_COMMAND);
-                strcat(cmd.output, SPACE);
+            if (strcmp(cmd.command, CD_COMMAND_W) == 0 && cmd.arg1 != NULL) {
                 strcat(cmd.output, cmd.arg1);
-                strcat(cmd.output, TERMINATOR);
-                run(&cmd);
-                printr(&cmd);
+                chdir(cmd.arg1);
             }
             else if (strcmp(cmd.command, DIR_COMMAND) == 0) {
                 strcpy(cmd.output, LS_COMMAND);
@@ -71,9 +74,7 @@ int main() {
             }
             else if (strcmp(cmd.command, TYPE_COMMAND) == 0 && cmd.arg1 != NULL) {
                 strcpy(cmd.output, CAT_COMMAND);
-                strcat(cmd.output, SPACE);
                 strcat(cmd.output, cmd.arg1);
-                system(cmd.output);
                 run(&cmd);
                 printr(&cmd);
             }
@@ -109,11 +110,10 @@ int main() {
 
 void prompt(COMMAND *c) {
     reset(c);
-    printf(STR_F, PROMPT);
-    printf(STR_F, EXIT_STRING);
     strcpy(c->output, PWD_COMMAND);
     run(c);
-    c->response[strlen(c->response) - 1] = '>';
+    *strchr(c->response, NEWLINE) = TERMINATOR;
+    strcat(c->response, DIV);
     printr(c);
     reset(c);
 }
@@ -133,12 +133,13 @@ void run(COMMAND *c) {
     char response[RESPONSE_BUFFER];
     fp = popen(c->output, POPEN_MODE);
     if (fp != NULL) {
-        responseLength = fread(response, sizeof(char), RESPONSE_BUFFER - 1, fp);
-        if (responseLength > 0) {
-            if (response[responseLength - 2] != '\n') {
-                response[responseLength - 2] = '\n';
-            }
-            response[responseLength - 1] = '\0';
+        responseLength = fread(response, sizeof(char), RESPONSE_BUFFER - 2, fp);
+        if (response[0] == NEWLINE) {
+            response[0] = TERMINATOR;
+        }
+        else {
+            response[responseLength] = '\n';
+            response[responseLength + 1] = '\0';
         }
         strcpy(c->response, response);
     }
